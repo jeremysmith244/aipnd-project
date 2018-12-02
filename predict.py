@@ -86,13 +86,20 @@ def load_checkpoint(filepath):
         model = models.vgg16(pretrained=True)
     elif checkpoint['architecture'] == 'vgg16_bn':
         model = models.vgg16_bn(pretrained=True)
+    elif checkpoint['architecture'] == 'densenet121':
+        model = models.densenet121(pretrained=True)
+    elif checkpoint['architecture'] == 'inception_v3':
+        model = models.inception_v3(pretrained=True)
 
     # Load the classifier for the model
     classifier = nn.Sequential(
-        OrderedDict([('fc1', nn.Linear(25088, checkpoint['hidden_units'])),
-                    ('relu', nn.ReLU()),
-                    ('fc2', nn.Linear(checkpoint['hidden_units'], 102)),
-                    ('output', nn.LogSoftmax(dim=1))]))
+        OrderedDict([('fc1', nn.Linear(model.classifier.in_features,
+                                       checkpoint['hidden_units'])),
+                     ('relu', nn.ReLU()),
+                     ('fc2', nn.Linear(checkpoint['hidden_units'], 102)),
+                     ('output', nn.LogSoftmax(dim=1))]))
+
+    # Create optimizer
     model.classifier = classifier
 
     # Load state dictionary and class indices

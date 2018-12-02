@@ -178,14 +178,12 @@ validloader = torch.utils.data.DataLoader(
 
 # Check desired aritechture and load pretrained model from pytorch
 if inpts.arch:
-    if inpts.arch == 'vgg11':
-        model = models.vgg11(pretrained=True)
-    elif inpts.arch == 'vgg11_bn':
+
+    if inpts.arch == 'vgg11_bn':
         model = models.vgg11_bn(pretrained=True)
-    elif inpts.arch == 'vgg16':
-        model = models.vgg16(pretrained=True)
-    elif inpts.arch == 'vgg16_bn':
-        model = models.vgg16_bn(pretrained=True)
+    elif inpts.arch == 'densenet121':
+        model = models.densenet121(pretrained=True)
+
 else:
     model = models.vgg11_bn(pretrained=True)
 
@@ -193,19 +191,49 @@ else:
 for param in model.parameters():
     param.requires_grad = False
 
-# Add a 102 output classifier, with option hidden units or default 4096
-if inpts.hid_un:
-    classifier = nn.Sequential(
-        OrderedDict([('fc1', nn.Linear(25088, inpts.hid_un)),
-                     ('relu', nn.ReLU()),
-                     ('fc2', nn.Linear(inpts.hid_un, 102)),
-                     ('output', nn.LogSoftmax(dim=1))]))
+# Add a 102 output classifier, with option hidden units or default 500
+if inpts.arch == 'densenet121':
+    if inpts.hid_un:
+        classifier = nn.Sequential(
+            OrderedDict([('fc1', nn.Linear(model.classifier.in_features,
+                                           inpts.hid_un)),
+                         ('relu', nn.ReLU()),
+                         ('fc2', nn.Linear(inpts.hid_un, 102)),
+                         ('output', nn.LogSoftmax(dim=1))]))
+    else:
+        classifier = nn.Sequential(
+            OrderedDict([('fc1', nn.Linear(model.classifier.in_features, 500)),
+                         ('relu', nn.ReLU()),
+                         ('fc2', nn.Linear(500, 102)),
+                         ('output', nn.LogSoftmax(dim=1))]))
+
+if inpts.arch == 'vgg11_bn':
+    if inpts.hid_un:
+        classifier = nn.Sequential(
+            OrderedDict([('fc1', nn.Linear(25088, inpts.hid_un)),
+                         ('relu', nn.ReLU()),
+                         ('fc2', nn.Linear(inpts.hid_un, 102)),
+                         ('output', nn.LogSoftmax(dim=1))]))
+    else:
+        classifier = nn.Sequential(
+            OrderedDict([('fc1', nn.Linear(25088, 4096)),
+                         ('relu', nn.ReLU()),
+                         ('fc2', nn.Linear(4096, 102)),
+                         ('output', nn.LogSoftmax(dim=1))]))
+
 else:
-    classifier = nn.Sequential(
-        OrderedDict([('fc1', nn.Linear(25088, 4096)),
-                     ('relu', nn.ReLU()),
-                     ('fc2', nn.Linear(4096, 102)),
-                     ('output', nn.LogSoftmax(dim=1))]))
+        if inpts.hid_un:
+            classifier = nn.Sequential(
+                OrderedDict([('fc1', nn.Linear(25088, inpts.hid_un)),
+                             ('relu', nn.ReLU()),
+                             ('fc2', nn.Linear(inpts.hid_un, 102)),
+                             ('output', nn.LogSoftmax(dim=1))]))
+        else:
+            classifier = nn.Sequential(
+                OrderedDict([('fc1', nn.Linear(25088, 4096)),
+                             ('relu', nn.ReLU()),
+                             ('fc2', nn.Linear(4096, 102)),
+                             ('output', nn.LogSoftmax(dim=1))]))
 
 # Make sure only to pass the newly added classifier parameters to the optimizer
 model.classifier = classifier
@@ -236,7 +264,10 @@ if inpts.save_dir:
     if inpts.hid_un:
         hid_un = inpts.hid_un
     else:
-        hid_un = 4096
+        if inpts.arch == 'vgg11_bn':
+            hid_un = 4096
+        else:
+            hid_un = 500
 
     model.class_to_idx = train_data.class_to_idx
 
@@ -244,13 +275,7 @@ if inpts.save_dir:
                   'output_size': [102],
                   'hidden_units': hid_un,
                   'architecture': arch,
-                  'classifier': OrderedDict([('fc1', nn.Linear(25088, 4096)),
-                                            ('relu', nn.ReLU()),
-                                            ('fc2', nn.Linear(4096, 102)),
-                                            ('output', nn.LogSoftmax(dim=1))]),
-                  'optimizer': 'optim.Adam(model.classifier.parameters(),\
-                                           lr=0.001)',
-                  'criterion': 'nn.NLLLoss()',
+                  'optimizer': optimizer.state_dict(),
                   'state_dict': model.state_dict(),
                   'class_to_idx': model.class_to_idx}
 
